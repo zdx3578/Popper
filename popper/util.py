@@ -11,13 +11,31 @@ from typing import NamedTuple
 from time import perf_counter
 from contextlib import contextmanager
 
+
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
+from   matplotlib import colors
+import seaborn as sns
+
+import json
+import os
+from pathlib import Path
+
+from subprocess import Popen, PIPE, STDOUT
+from glob import glob
+import networkx as nx
+
+
+
 class Literal(NamedTuple):
     predicate: str
     arguments: tuple
 
 clingo.script.enable_python()
 
-TIMEOUT=1200
+TIMEOUT=12000
 EVAL_TIMEOUT=0.001
 MAX_LITERALS=40
 MAX_SOLUTIONS=1
@@ -53,8 +71,8 @@ def parse_args():
     parser.add_argument('--eval-timeout', type=float, default=EVAL_TIMEOUT, help=f'Prolog evaluation timeout in seconds (default: {EVAL_TIMEOUT})')
     parser.add_argument('--stats', default=True, action='store_true', help='Print statistics at end of execution')
     parser.add_argument('--quiet', '-q', default=False, action='store_true', help='Hide information during learning')
-    parser.add_argument('--debug', default=False, action='store_true', help='Print debugging information to stderr')
-    parser.add_argument('--showcons', default=False, action='store_true', help='Show constraints deduced during the search')
+    parser.add_argument('--debug', default=True, action='store_true', help='Print debugging information to stderr')
+    parser.add_argument('--showcons', default=True, action='store_true', help='Show constraints deduced during the search')
     parser.add_argument('--solver', default='rc2', choices=['clingo', 'rc2', 'uwr', 'wmaxcdcl'], help='Select a solver for the combine stage (default: rc2)')
     parser.add_argument('--anytime-solver', default=None, choices=['wmaxcdcl', 'nuwls'], help='Select an anytime MaxSAT solver (default: None)')
     parser.add_argument('--anytime-timeout', type=int, default=ANYTIME_TIMEOUT, help=f'Maximum timeout (seconds) for each anytime MaxSAT call (default: {ANYTIME_TIMEOUT})')
@@ -92,7 +110,108 @@ def timeout(settings, func, args=(), kwargs={}, timeout_duration=1):
 
     return result
 
+def load_json(file_path):
+    with open(file_path) as f:
+        data = json.load(f)
+    return data
+
+def load_arc_json():
+
+    base_path='/home/zdx/github/VSAHDC/arc-prize-2024/'
+    # Loading JSON data
+    
+    # Reading files
+    training_challenges =  load_json(base_path +'arc-agi_training_challenges.json')
+    # training_solutions =   load_json(base_path +'arc-agi_training_solutions.json')
+
+    # evaluation_challenges =load_json(base_path +'arc-agi_evaluation_challenges.json')
+    # evaluation_solutions = load_json(base_path +'arc-agi_evaluation_solutions.json')
+
+    # test_challenges =  load_json(base_path +'arc-agi_test_challenges.json')
+    print(f'Number of training challenges = {len(training_challenges)}')
+    
+    
+    
+    # json_strings_with_data = [(json.dumps(item), item) for item in training_challenges]
+    # # 按照字符串长度排序
+    # sorted_json_strings_with_data = sorted(json_strings_with_data, key=lambda x: len(x[0]))
+    # # 提取排序后的 JSON 数据
+    # training_challenges_s = [item[1] for item in sorted_json_strings_with_data]
+    # json_strings = [json.dumps(item) for item in training_challenges]
+    # # 按照字符串长度排序
+    # training_challenges_s = [json.loads(item) for item in sorted(json_strings, key=len)]
+    # sorted_json_data = sorted(training_challenges, key=lambda x: len(json.dumps(x)))
+    # # training_challenges_s =  sorted(training_challenges, key=lambda x: len(json.dumps(x)))
+    
+    training_challenges_s1 = sorted(training_challenges.items(), key=lambda x: len(x[1]['train'][0]['input']))
+    
+    
+    # training_challenges_s2 = sort_challenges_by_size(training_challenges)
+    
+    
+    
+    for i in range(5):
+        t=list(training_challenges)[i]
+        task=training_challenges[t]
+        print(f'Set #{i}, {t}')
+        
+        # t = '6150a2bd'
+        task = training_challenges[t]
+        print(task.keys())
+        n_train_pairs = len(task['train'])
+        n_test_pairs = len(task['test'])
+
+        print(f'task contains {n_train_pairs} training pairs')
+        print(f'task contains {n_test_pairs} test pairs')
+        
+        dynamic_vars = {}
+        
+        for j in range(n_train_pairs):
+            print(task['train'][j]['input'])
+            grid=(task['train'][j]['input'])
+            
+            dynamic_vars[t+"_train" + str(j) + "_input"]  = nx.grid_2d_graph(len(grid[0]), len(grid))
+            
+            for r, row in enumerate(task['train'][j]['input']):
+                for c, color in enumerate(row):
+                    dynamic_vars[t+"_train" + str(j) + "_input"] .nodes[r, c]["color"] = "color" + "_" + str(color)
+            
+            print(task['train'][j]['output'])
+            grid=(task['train'][j]['output'])
+            
+            dynamic_vars[t+"_train" + str(j) + "_output"]  = nx.grid_2d_graph(len(grid[0]), len(grid))
+            for r, row in enumerate(task['train'][j]['output']):
+                for c, color in enumerate(row):
+                    dynamic_vars[t+"_train" + str(j) + "_output"] .nodes[r, c]["color"] = "color" + "_" + str(color)
+                    
+        for j in range(n_test_pairs):
+            print(task['test'][j]['input'])
+            grid=(task['test'][j]['input'])
+            
+            dynamic_vars[t+"_test" + str(j) + "_input"]  = nx.grid_2d_graph(len(grid[0]), len(grid))
+            
+            for r, row in enumerate(task['test'][j]['input']):
+                for c, color in enumerate(row):
+                    dynamic_vars[t+"_test" + str(j) + "_input"] .nodes[r, c]["color"] = "color" + "_" + str(color)
+            
+            # print(task['test'][j]['output'])
+            # grid=(task['test'][j]['output'])
+            
+            # dynamic_vars[t+"_test" + str(j) + "_output"]  = nx.grid_2d_graph(len(grid[0]), len(grid))
+            # for r, row in enumerate(task['test'][j]['output']):
+            #     for c, color in enumerate(row):
+            #         dynamic_vars[t+"_test" + str(j) + "_output"] .nodes[r, c]["color"] = "color" + "_" + str(color)
+                    
+        print
+        
+        
+    
+    
+    
+    
+
 def load_kbpath(kbpath):
+    load_arc_json()
     def fix_path(filename):
         full_filename = os.path.join(kbpath, filename)
         return full_filename.replace('\\', '\\\\') if os.name == 'nt' else full_filename
@@ -788,3 +907,126 @@ def remap_variables(rule):
 
 def format_prog(prog):
     return '\n'.join(format_rule(rule) for rule in prog)
+
+
+
+def group_elements_by_both_dimensions(elements, threshold=2):
+    def dfs(i, current_group):
+        for j, elem2 in enumerate(elements):
+            if j not in used and abs(elements[i][0] - elem2[0]) < threshold and abs(elements[i][1] - elem2[1]) < threshold:
+                used.add(j)
+                current_group.append(elem2)
+                dfs(j, current_group)
+
+    groups = []  # 用于保存分组结果
+    used = set()  # 记录已经被分组的元素索引
+
+    for i, elem1 in enumerate(elements):
+        if i not in used:
+            current_group = [elem1]
+            used.add(i)
+            dfs(i, current_group)  # 通过 DFS 将所有与当前元素连通的元素找到
+            groups.append(current_group)
+
+    return  sorted([sorted(sublist) for sublist in groups])
+
+def group_elements(elements):
+    def is_close(a, b):
+        return all(abs(a[i] - b[i]) <= 1 for i in range(len(a)))
+
+    def dfs(node, graph, visited, group):
+        visited.add(node)
+        group.append(elements[node])
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                dfs(neighbor, graph, visited, group)
+
+    graph = {i: [] for i in range(len(elements))}
+    for i in range(len(elements)):
+        for j in range(i + 1, len(elements)):
+            if is_close(elements[i], elements[j]):
+                graph[i].append(j)
+                graph[j].append(i)
+
+    groups = []
+    visited = set()
+    for i in range(len(elements)):
+        if i not in visited:
+            current_group = []
+            dfs(i, graph, visited, current_group)
+            groups.append(current_group)
+
+    return  sorted([sorted(sublist) for sublist in groups])
+
+def group_elements_by_any_dimension_equal(elements, threshold=2):
+    def dfs(i, current_group):
+        for j, elem2 in enumerate(elements):
+            if j not in used:
+                # 判断两个元素在任意一个维度上是否相同，且另一个维度的差值是否小于阈值
+                if (elements[i][0] == elem2[0] and abs(elements[i][1] - elem2[1]) < threshold) or \
+                   (elements[i][1] == elem2[1] and abs(elements[i][0] - elem2[0]) < threshold):
+                    used.add(j)
+                    current_group.append(elem2)
+                    dfs(j, current_group)
+
+    groups = []  # 保存分组结果
+    used = set()  # 记录已经被分组的元素索引
+
+    for i, elem1 in enumerate(elements):
+        if i not in used:
+            current_group = [elem1]
+            used.add(i)
+            dfs(i, current_group)  # 通过 DFS 将符合条件的所有元素找到
+            groups.append(current_group)
+
+    return  sorted([sorted(sublist) for sublist in groups])
+
+
+
+def sort_challenges_by_size(challenges, ascending=True):
+    """
+    Sorts the challenges by the number of cells in their training examples (input+output).
+
+    This function sorts a dictionary of challenges ID based on the total number 
+    of cells (elements) in the 'input' and 'output' grids of the 'train' examples.
+
+    Parameters:
+    -----------
+    challenges : dict
+        A dictionary where keys are challenge IDs and values are challenge details.
+        Each challenge contains a 'train' key, which is a list of examples, and each 
+        example has 'input' and 'output' lists of lists.
+    
+    ascending : bool, optional (default=True)
+        If True, the challenges are sorted in ascending order by the number of cells.
+        If False, they are sorted in descending order.
+
+    Returns:
+    --------
+    list
+        A list of challenge IDs sorted by the number of cells in the 'train' examples.
+
+    Example:
+    --------
+    res = sort_challenges_by_size(training_challenges)
+    """
+    def count_challenge_cells(challenge):
+        return sum(
+            extract_numbers(example['input']) + extract_numbers(example['output']) 
+            for example in challenge['train']
+        )
+
+    def extract_numbers(list_of_lists):
+        return sum(len(sublist) for sublist in list_of_lists)
+    
+    def check_ids(list1, list2):
+        return sorted(list1) == sorted(list2)
+    
+    def sort_ids_by_numbers(ids, numbers, ascending=True):
+        return [id for _, id in sorted(zip(numbers, ids), reverse=not ascending)]
+        
+
+    challenge_ids = list(challenges)
+    numbers = [count_challenge_cells(challenges[_id]) for _id in challenge_ids]
+
+    return sort_ids_by_numbers(challenge_ids, numbers, ascending=ascending)

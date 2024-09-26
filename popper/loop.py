@@ -209,6 +209,9 @@ class Popper():
 
                 if settings.stats.total_programs % 10000 == 0:
                     tester.janus_clear_cache()
+                    
+                if settings.stats.total_programs % 300 == 0:
+                    print()
 
                 if settings.debug:
                     settings.logger.debug(f'Program {settings.stats.total_programs}:')
@@ -1483,7 +1486,7 @@ class Popper():
                     # print('\t\t\t SAT',format_prog(subprog))
                     # sat.add(raw_prog)
                     continue
-                # print('\t\t\t UNSAT',format_prog(subprog))
+                print('\t\t\t UNSAT',format_prog(subprog))
 
             unsat.add(raw_prog)
             unsat2.add(subprog)

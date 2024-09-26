@@ -120,7 +120,7 @@ def anytime_maxsat_solve(hard_clauses, soft_clauses, weights, settings, timeout)
                 # print('errr', error)
                 output = error.output.decode("utf-8").split("\n")
         if "s UNSATISFIABLE" in output:
-            # print('UNSATISFIABLE')
+            print('UNSATISFIABLE')
             return float("inf"), None
         elif "s OPTIMUM FOUND" in output or "s SATISFIABLE" in output:
             cost_line = [line for line in output if line.startswith("o ")][-1]
@@ -147,7 +147,7 @@ def anytime_maxsat_solve(hard_clauses, soft_clauses, weights, settings, timeout)
                 output = error.output.decode("utf-8").split("\n")
                 # print(output, error)
         if "UNSATISFIABLE" in output:
-            # print('UNSATISFIABLE')
+            print('UNSATISFIABLE')
             return float("inf"), None
         elif "s OPTIMUM FOUND" in output or "s SATISFIABLE" in output:
             cost_line = [line for line in output if line.startswith("o ")][-1]
